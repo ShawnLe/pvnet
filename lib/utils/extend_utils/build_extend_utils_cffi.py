@@ -1,9 +1,13 @@
 import os
 
-ceres_include='./include'          # contains Ceres/ceres.h
-ceres_library='./lib/libceres.so'
-eigen_include='./include/eigen3'                     # contains Eigen/Core
-glog_library='./lib/libglog.so'
+#ceres_include='./include'          # contains Ceres/ceres.h
+ceres_include='/usr/include/'
+#ceres_library='./lib/libceres.so'
+ceres_library='/usr/lib/libceres.so'
+#eigen_include='./include/eigen3'                     # contains Eigen/Core
+eigen_include='/usr/include/eigen3'
+#glog_library='./lib/libglog.so'
+glog_library='/usr/lib/x86_64-linux-gnu/libglog.so'
 cuda_include='/usr/local/cuda-8.0/include'
 cudart = '/usr/local/cuda-8.0/lib64/libcudart.so'
 
