@@ -133,7 +133,8 @@ def save_model(net, optim, epoch, model_dir):
 class AverageMeter(EasyDict):
     """Computes and stores the average and current value"""
     def __init__(self):
-        super().__init__()
+        # super().__init__()
+        super(AverageMeter, self).__init__()
         self.reset()
 
     def reset(self):

@@ -5,13 +5,16 @@ import time
 import cv2
 import sys
 
-
 sys.path.append('.')
 sys.path.append('..')
 
 import numpy as np
 import glob
 import os
+import os.path as osp
+
+import cPickle
+
 # from skimage.io import imread
 from plyfile import PlyData
 from PIL import Image, ImageFile
@@ -159,6 +162,264 @@ class LineModModelDB(object):
         vert_id = np.asarray(vert_id,np.int64)
 
         return vert, vert_id
+
+
+class LovSynImageDB(object):
+
+    def __init__(self, image_set='lov_syn'):
+
+        self.name = image_set
+        self._class_colors = [(255, 255, 255), (255, 0, 0), (0, 255, 0)]
+        self._class_weights = [1, 1, 1]
+
+        # self._lov_path = '/media/shawnle/Data0/YCB_Video_Dataset/YCB_Video_Dataset/data_syn_LOV/data_2_objs'
+        self._lov_path = '/home/shawnle/Documents/Restore_PoseCNN/PoseCNN-master/data/LOV'        
+        assert os.path.exists(self._lov_path), \
+                'lov path does not exist: {}'.format(self._lov_path)
+        
+        self._image_set = image_set
+        self._classes = ('__background__', '002_master_chef_can', '003_cracker_box')
+        self.num_classes = len(self._classes)
+
+        self._points, self._points_all = self._load_object_points()
+
+        self._image_index = self._load_image_set_index()
+        self.image_index = self._image_index
+        self.roidb = self.gt_roidb()
+        self._image_ext = '.png'
+        self._data_path = os.path.join(self._lov_path, 'data_syn')
+        self._count = 0
+
+        print 'roidb[0] = \n' + str(self.roidb[0])
+
+    #     # convert roidb to list of dictionary
+    #     self.append_flipped_images()
+
+
+    
+    # def append_flipped_images(self):
+    #     num_images = self.num_images
+    #     for i in xrange(num_images):
+    #         entry = {'image' : self.roidb[i]['image'],
+    #                     'depth' : self.roidb[i]['depth'],
+    #                     'label' : self.roidb[i]['label'],
+    #                     'meta_data' : self.roidb[i]['meta_data'],
+    #                     'class_colors' : self.roidb[i]['class_colors'],
+    #                     'class_weights' : self.roidb[i]['class_weights'],
+    #                     'cls_index' : self.roidb[i]['cls_index'],
+    #                     'flipped' : True}
+    #         self.roidb.append(entry)
+    #     self._image_index = self._image_index * 2
+    #     print 'finish appending flipped images'
+
+
+    @property
+    def num_images(self):
+      return len(self.image_index)
+
+
+
+    def image_path_from_index(self, index):
+        """
+        Construct an image path from the image's "index" identifier.
+        """
+
+        image_path = os.path.join(self._data_path, index + '-color' + self._image_ext)
+        assert os.path.exists(image_path), \
+                'Path does not exist: {}'.format(image_path)
+        return image_path
+
+
+
+    def depth_path_from_index(self, index):
+        """
+        Construct an depth path from the image's "index" identifier.
+        """
+        depth_path = os.path.join(self._data_path, index + '-depth' + self._image_ext)
+        assert os.path.exists(depth_path), \
+                'Path does not exist: {}'.format(depth_path)
+        return depth_path
+
+
+
+    def label_path_from_index(self, index):
+        """
+        Construct an metadata path from the image's "index" identifier.
+        """
+        label_path = os.path.join(self._data_path, index + '-label' + self._image_ext)
+        assert os.path.exists(label_path), \
+                'Path does not exist: {}'.format(label_path)
+        return label_path
+
+
+
+    def metadata_path_from_index(self, index):
+        """
+        Construct an metadata path from the image's "index" identifier.
+        """
+        metadata_path = os.path.join(self._data_path, index + '-meta.mat')
+        assert os.path.exists(metadata_path), \
+                'Path does not exist: {}'.format(metadata_path)
+        return metadata_path
+
+
+    def _load_lov_annotation(self, index):
+        """
+        Load class name and meta data
+        """
+        # image path
+        image_path = self.image_path_from_index(index)
+
+        # depth path
+        depth_path = self.depth_path_from_index(index)
+
+        # label path
+        label_path = self.label_path_from_index(index)
+
+        # metadata path
+        metadata_path = self.metadata_path_from_index(index)
+
+        # parse image name
+        # pos = index.find('/')
+        # video_id = index[:pos]
+        video_id = ''
+
+        # if not cfg.TRAIN.SEGMENTATION and self._count % 10 == 0:
+        #     self.compute_gt_box_overlap(index)
+        self._count += 1
+        
+        return {'image': image_path,
+                'depth': depth_path,
+                'label': label_path,
+                'meta_data': metadata_path,
+                'video_id': video_id,
+                'class_colors': self._class_colors,
+                'class_weights': self._class_weights,
+                'cls_index': -1,
+                'flipped': False}
+
+
+    @property
+    def cache_path(self):
+        # cache_path = osp.abspath(osp.join(datasets.ROOT_DIR, 'data', 'cache'))
+        cache_path = osp.abspath(osp.join(self._lov_path, 'data_syn', 'cache'))
+        if not os.path.exists(cache_path):
+            os.makedirs(cache_path)
+        return cache_path
+
+
+    def gt_roidb(self):
+        """
+        Return the database of ground-truth regions of interest.
+
+        This function loads/saves from/to a cache file to speed up future calls.
+        """
+
+        cache_file = os.path.join(self.cache_path, self.name + '_gt_roidb.pkl')
+        if os.path.exists(cache_file):
+            with open(cache_file, 'rb') as fid:
+                roidb = cPickle.load(fid)
+            print '{} gt roidb loaded from {}'.format(self.name, cache_file)
+            print 'class weights: ', roidb[0]['class_weights']
+            return roidb
+
+        # self.compute_class_weights()
+
+        gt_roidb = [self._load_lov_annotation(index)
+                    for index in self.image_index]
+
+        # if not cfg.TRAIN.SEGMENTATION:
+        #     # print out recall
+        #     for i in xrange(1, self.num_classes):
+        #         print '{}: Total number of boxes {:d}'.format(self.classes[i], self._num_boxes_all[i])
+        #         print '{}: Number of boxes covered {:d}'.format(self.classes[i], self._num_boxes_covered[i])
+        #         if self._num_boxes_all[i] > 0:
+        #             print '{}: Recall {:f}'.format(self.classes[i], float(self._num_boxes_covered[i]) / float(self._num_boxes_all[i]))
+
+        with open(cache_file, 'wb') as fid:
+            cPickle.dump(gt_roidb, fid, cPickle.HIGHEST_PROTOCOL)
+        print 'wrote gt roidb to {}'.format(cache_file)
+
+        return gt_roidb
+
+
+
+
+
+    def gt_roidb(self):
+        """
+        Return the database of ground-truth regions of interest.
+
+        This function loads/saves from/to a cache file to speed up future calls.
+        """
+
+        cache_file = os.path.join(self.cache_path, self.name + '_gt_roidb.pkl')
+        if os.path.exists(cache_file):
+            with open(cache_file, 'rb') as fid:
+                roidb = cPickle.load(fid)
+            print '{} gt roidb loaded from {}'.format(self.name, cache_file)
+            print 'class weights: ', roidb[0]['class_weights']
+            return roidb
+
+        # self.compute_class_weights()
+
+        gt_roidb = [self._load_lov_annotation(index)
+                    for index in self.image_index]
+
+        # if not cfg.TRAIN.SEGMENTATION:
+        #     # print out recall
+        #     for i in xrange(1, self.num_classes):
+        #         print '{}: Total number of boxes {:d}'.format(self.classes[i], self._num_boxes_all[i])
+        #         print '{}: Number of boxes covered {:d}'.format(self.classes[i], self._num_boxes_covered[i])
+        #         if self._num_boxes_all[i] > 0:
+        #             print '{}: Recall {:f}'.format(self.classes[i], float(self._num_boxes_covered[i]) / float(self._num_boxes_all[i]))
+
+        with open(cache_file, 'wb') as fid:
+            cPickle.dump(gt_roidb, fid, cPickle.HIGHEST_PROTOCOL)
+        print 'wrote gt roidb to {}'.format(cache_file)
+
+        return gt_roidb
+
+
+
+    def _load_image_set_index(self):
+        """
+        Load the indexes listed in this dataset's image set file.
+        """
+        image_set_file = os.path.join(self._lov_path, self._image_set + '.txt')
+        assert os.path.exists(image_set_file), \
+                'Path does not exist: {}'.format(image_set_file)
+
+        with open(image_set_file) as f:
+            image_index = [x.rstrip('\n') for x in f.readlines()]
+
+        print "there are total " + str(len(image_index)) + " indexes."
+        return image_index
+
+
+
+    def _load_object_points(self):
+
+        print '[_load_object_points] starts'
+
+        points = [[] for _ in xrange(len(self._classes))]
+        num = np.inf
+
+        for i in xrange(1, len(self._classes)):
+            point_file = os.path.join(self._lov_path, 'models', self._classes[i], 'points.xyz')
+            print 'point_file = ' + point_file
+            assert os.path.exists(point_file), 'Path does not exist: {}'.format(point_file)
+            points[i] = np.loadtxt(point_file)
+            if points[i].shape[0] < num:
+                num = points[i].shape[0]
+
+        points_all = np.zeros((self.num_classes, num, 3), dtype=np.float32)
+        for i in xrange(1, len(self._classes)):
+            points_all[i, :, :] = points[i][:num, :]
+
+        return points, points_all
+
+        
 
 class LineModImageDB(object):
     '''
