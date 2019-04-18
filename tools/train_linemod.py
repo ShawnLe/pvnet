@@ -309,7 +309,8 @@ def train_net():
 
         image_db = LineModImageDB(args.linemod_cls,
                                   has_fuse_set=train_cfg['use_fuse'],
-                                  has_render_set=True)
+                                  has_render_set=False)
+                                # has_render_set=True)
 
         train_db=[]
         train_db+=image_db.render_set
@@ -319,6 +320,7 @@ def train_net():
             train_db+=image_db.fuse_set
 
         train_set = LineModDatasetRealAug(train_db, cfg.LINEMOD, vote_type, augment=True, cfg=train_cfg['aug_cfg'], use_motion=motion_model)
+        # print 'one entry of LineModDatasetRealAug : ' + str(train_set.__getitem__([0, 480, 640]))
         train_sampler = RandomSampler(train_set)
         train_batch_sampler = ImageSizeBatchSampler(train_sampler, train_cfg['train_batch_size'], False, cfg=train_cfg['aug_cfg'])
         train_loader = DataLoader(train_set, batch_sampler=train_batch_sampler, num_workers=12)
@@ -329,20 +331,20 @@ def train_net():
         val_batch_sampler = ImageSizeBatchSampler(val_sampler, train_cfg['test_batch_size'], False, cfg=train_cfg['aug_cfg'])
         val_loader = DataLoader(val_set, batch_sampler=val_batch_sampler, num_workers=12)
 
-        if args.linemod_cls in cfg.occ_linemod_cls_names:
-            occ_image_db=OcclusionLineModImageDB(args.linemod_cls)
-            occ_val_db=occ_image_db.test_real_set[:len(occ_image_db.test_real_set)//2]
-            occ_val_set = LineModDatasetRealAug(occ_val_db, cfg.OCCLUSION_LINEMOD, vote_type, augment=False, cfg=train_cfg['aug_cfg'], use_motion=motion_model)
-            occ_val_sampler = SequentialSampler(occ_val_set)
-            occ_val_batch_sampler = ImageSizeBatchSampler(occ_val_sampler, train_cfg['test_batch_size'], False, cfg=train_cfg['aug_cfg'])
-            occ_val_loader = DataLoader(occ_val_set, batch_sampler=occ_val_batch_sampler, num_workers=12)
+        # if args.linemod_cls in cfg.occ_linemod_cls_names:
+        #     occ_image_db=OcclusionLineModImageDB(args.linemod_cls)
+        #     occ_val_db=occ_image_db.test_real_set[:len(occ_image_db.test_real_set)//2]
+        #     occ_val_set = LineModDatasetRealAug(occ_val_db, cfg.OCCLUSION_LINEMOD, vote_type, augment=False, cfg=train_cfg['aug_cfg'], use_motion=motion_model)
+        #     occ_val_sampler = SequentialSampler(occ_val_set)
+        #     occ_val_batch_sampler = ImageSizeBatchSampler(occ_val_sampler, train_cfg['test_batch_size'], False, cfg=train_cfg['aug_cfg'])
+        #     occ_val_loader = DataLoader(occ_val_set, batch_sampler=occ_val_batch_sampler, num_workers=12)
 
         for epoch in range(begin_epoch, train_cfg['epoch_num']):
             adjust_learning_rate(optimizer,epoch,train_cfg['lr_decay_rate'],train_cfg['lr_decay_epoch'])
             train(net, optimizer, train_loader, epoch)
             val(net, val_loader, epoch,use_motion=motion_model)
-            if args.linemod_cls in cfg.occ_linemod_cls_names:
-                val(net, occ_val_loader, epoch, 'occ_val',use_motion=motion_model)
+            # if args.linemod_cls in cfg.occ_linemod_cls_names:
+            #     val(net, occ_val_loader, epoch, 'occ_val',use_motion=motion_model)
             save_model(net.module.net, optimizer, epoch, model_dir)
 
 # def save_dataset(dataset,prefix=''):

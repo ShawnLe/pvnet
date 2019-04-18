@@ -190,7 +190,7 @@ class LovSynImageDB(object):
         self._data_path = os.path.join(self._lov_path, 'data_syn')
         self._count = 0
 
-        print 'roidb[0] = \n' + str(self.roidb[0])
+        print ('roidb[0] = \n', str(self.roidb[0]))
 
     #     # convert roidb to list of dictionary
     #     self.append_flipped_images()
@@ -456,6 +456,7 @@ class LineModImageDB(object):
                 self.render_set=read_pickle(self.render_pkl)
             else:
                 # process render set
+                print 'read pickle ' + str(self.render_pkl)
                 self.render_set=self.collect_render_set_info(self.render_pkl,self.render_dir)
         else:
             self.render_set=[]
